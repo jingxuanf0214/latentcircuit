@@ -107,5 +107,51 @@ class Net(torch.nn.Module):
                     x = self.forward(u)
                     print('Epoch: {}/{}.............'.format(epoch, epochs), end=' ')
                     print("mse_z: {:.4f}".format(self.mse_z(x, z, mask).item()))
+
+    def evaluate(self, u, z, batch_size=128):
+        """
+        Evaluate the accuracy of the network on a dataset by comparing the network's predicted choice
+        at the last time step for each trial with the true labels, in a batch-wise manner.
+        
+        :param u: Input data (batch_size, time_steps, input_size)
+        :param z: True labels (batch_size, time_steps, output_size), with the correct choice at the last time step
+        :param batch_size: Size of the batch for evaluation
+        
+        :return: Accuracy (percentage of correct predictions)
+        """
+        # Create a DataLoader to iterate through the dataset in batches
+        dataset = TensorDataset(u, z)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        
+        total_correct_predictions = 0
+        total_predictions = 0
+        
+        with torch.no_grad():
+            for u_batch, z_batch in dataloader:
+                # Move data to the correct device (GPU or CPU)
+                u_batch = u_batch.to(device)
+                z_batch = z_batch.to(device)
+                
+                # Forward pass to get the network output for the batch
+                x_batch = self.forward(u_batch)
+                output_batch = self.output_layer(x_batch)
+
+                # Get the network's predicted choice at the last time step
+                predictions = torch.argmax(output_batch[:, -1, :], dim=1)
+
+                # True labels for the last time step (assuming binary classification: right or left)
+                true_labels = torch.argmax(z_batch[:, -1, :], dim=1)
+
+                # Calculate the number of correct predictions
+                correct_predictions = (predictions == true_labels).sum().item()
+                total_correct_predictions += correct_predictions
+                total_predictions += true_labels.shape[0]
+
+        # Calculate accuracy as the percentage of correct predictions
+        accuracy = total_correct_predictions / total_predictions * 100
+        
+        return accuracy
+
+
                 
 
